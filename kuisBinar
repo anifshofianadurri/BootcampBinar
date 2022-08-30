@@ -1,0 +1,61 @@
+SELECT * FROM `macro-pulsar-354314.Binar.distribution_centers`
+
+select * from `Binar.employees`
+
+#Tampilkan usia karyawan dengan length service terlama
+select age, length_service
+from `Binar.employees`
+order by length_service desc
+limit 1
+
+
+#Rata rata absent hour tertinggi berdasarkan kelas umur anak & remaja, dewasa, senior (3 kelas dengan range terserah anda). Tunjukkan yang tertinggi saja
+select avg(absent_hours) as rata2,
+case when age > 35 then 'senior'
+    when age between 25 and 35 then 'dewasa'
+    else 'anak2 dan remaja'
+end as Kategori_Umur
+from `Binar.employees`
+group by Kategori_Umur
+order by rata2 desc
+limit 1
+
+
+#Tampilkan jumlah seluruh employee dengan first name dimulai dengan “A” dan lastname diakhiri dengan “a” yang memiliki usia lebih dari 30 tahun
+select count (*) as total_employee from `Binar.employees`
+where first_name like 'A%' and last_name like '%a' and age >30;
+
+
+#Tampilkan distribution center dengan rata - rata length service terlama
+select name, avg(length_service) as length_service
+from `Binar.distribution_centers` join `Binar.employees`
+on distribution_centers_id = id
+group by name
+order by length_service desc
+limit 1
+
+
+# 3 distribution center dengan average absen hour tertinggi berdasarkan kelas usia (yang tadi)
+select name,
+case when age >35 then 'senior'
+    when age between 25 and 35 then 'dewasa'
+    else 'anak2 dan remaja'
+end as kategori_umur,
+avg(absent_hours) as rata2_absen
+from `Binar.distribution_centers` join `Binar.employees`
+on distribution_centers_id = id
+group by name, kategori_umur
+order by rata2_absen desc
+limit 3
+
+
+# Distribution center dengan rata rata absen hour yang lebih tinggi dari rata rata absent hour keseluruhan
+select name, 
+    avg(absent_hours) as rata2,
+    (select avg(absent_hours) from `Binar.employees`) as rata2_all
+from `Binar.distribution_centers` join `Binar.employees`
+on distribution_centers_id = id
+group by name
+having rata2 > rata2_all
+
+
