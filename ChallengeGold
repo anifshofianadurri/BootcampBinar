@@ -1,0 +1,195 @@
+#Konsolidasi data transaksi harian
+select Order_Date, 
+      sum(Sales) as Sales
+from `ChallengeBinar.orders`
+group by 1
+order by 1
+
+#Konsolidasi data transaksi bulanan
+select extract(year from Order_Date) as Year, 
+      extract(month from Order_Date) as Month, 
+      sum(Sales) as Sales
+from `ChallengeBinar.orders`
+group by 1,2
+order by 1,2
+
+#Konsolidasi data transaksi per 3 bulanan
+select extract(year from Order_Date) as Year,
+      extract(quarter from Order_Date) as Quarter,
+      sum(Sales) as Sales
+from `ChallengeBinar.orders`
+group by 1,2
+order by 1,2
+
+#Konsolidasi data transaksi tahunan
+select extract(year from Order_Date) as Year,
+      round(sum(Sales),2) as Sales
+from `ChallengeBinar.orders`
+group by 1
+order by 1
+
+#pencapaian actual vs target monthly, quarterly dan yearly ( dengan asumsi target tahunan = sales tahun lalu + (sales tahun lalu * 10%)
+with Tahun as(
+      select year,
+            sales,
+            lag(sales) over (partition by 1 order by 1)*1.1 as target
+            from (select extract(year from Order_Date) as year,
+                  sum(Sales) as Sales
+                  from `ChallengeBinar.orders`
+                  group by 1
+                  order by 1)
+)    
+select * from Tahun
+where year is not null
+order by year
+
+with Quarter as(
+      select year,
+            quarter,
+            sales,
+            lag(sales) over (partition by 1 order by 1,2)*1.1 as target
+            from (select extract(year from Order_Date)as year,
+                        extract(quarter from Order_Date) as quarter,
+                        sum (Sales) as sales
+                        from `ChallengeBinar.orders`
+                        group by 1,2
+                        order by 1,2)
+      )
+select * from Quarter
+where year is not null
+order by year, quarter
+
+with Month as (
+      select year,
+            quarter,
+            month,
+            sales,
+            lag(sales) over (partition by 1 order by year,quarter,month)*1.1 as target
+            from (select extract(year from Order_Date) as year,
+            extract(quarter from Order_Date) as quarter,
+            extract(month from Order_Date) as month,
+                  sum(Sales) as sales
+                  from `ChallengeBinar.orders`
+                  group by 1,2,3
+                  order by 1,2,3)
+      )
+select * from Month
+where year is not null
+order by year, quarter, month
+
+
+
+
+
+
+#% growth bulan ini vs bulan lalu
+with Month as(
+      select year,
+            month,
+            Sales,
+            Sales - lag(Sales) over (order by month ASC) as revenue_growth,
+            (sales - lag(Sales) over (order by month ASC))/lag(Sales) over (order by month ASC)*100 as revenue_percentage_growth,
+            from (select extract(year from Order_Date) as year,
+                  extract(month from Order_Date) as month,
+                  sum(Sales) as Sales
+                  from `ChallengeBinar.orders`
+                  group by 1,2
+                  order by 1,2)
+)    
+select * from Month
+where year is not null
+order by year,month
+
+#% growth 3-bulan ini vs 3-bulan lalu
+with Quarter as(
+      select year,
+            quarter,
+            Sales,
+            Sales - lag(Sales) over (order by quarter ASC) as revenue_growth,
+            (sales - lag(Sales) over (order by quarter ASC))/lag(Sales) over (order by quarter ASC)*100 as revenue_percentage_growth,
+            from (select extract(year from Order_Date) as year,
+                  extract(quarter from Order_Date) as quarter,
+                  sum(Sales) as Sales
+                  from `ChallengeBinar.orders`
+                  group by 1,2
+                  order by 1,2)
+)    
+select * from Quarter
+where year is not null
+order by year,quarter
+
+#% growth tahun ini vs tahun lalu
+with Tahun as(
+      select year,
+            Sales,
+            Sales - lag(Sales) over (order by year ASC) as revenue_growth,
+            (sales - lag(Sales) over (order by year ASC))/lag(Sales) over (order by year ASC)*100 as revenue_percentage_growth
+            from (select extract(year from Order_Date) as year,
+                  sum(Sales) as Sales
+                  from `ChallengeBinar.orders`
+                  group by 1
+                  order by 1)
+)    
+select * from Tahun
+where year is not null
+order by year
+
+
+#Laporan kerugian per produk dan per toko cabang (monthly, quarterly dan yearly)
+select extract (year from o.Order_Date) as Year,
+      extract (quarter from o.Order_Date) as Quarter,
+      extract(month from o.Order_Date) as Month,
+      c.Product_Name as Nama_Produk,
+     round(sum(o.Profit),2) as Kerugian
+from `ChallengeBinar.orders` as o
+left join `ChallengeBinar.categories` as c
+on o.Product_ID = c.Product_ID
+where Profit <0
+group by 1,2,3,4
+order by 1,2,3
+
+#Laporan segmentasi customer yang berbelanja: Bronze < USD 200 , USD 200 < Silver < USD 500 , Gold > USD 500 /3 bulan.
+select extract (year from o.Order_Date) as Tahun,
+      extract(quarter from o.Order_Date) as Quarter,
+      cust.Customer_Name as Nama_Customer,
+      sum(o.Sales) as Total_Belanja,
+      case when sum(o.Sales) >500 then 'Gold'
+            when sum(o.Sales) between 200 and 500 then 'Silver'
+            else 'Bronze'
+      end as Kategori_Customer
+from `ChallengeBinar.orders` as o
+join `ChallengeBinar.customers`as cust
+on o.Customer_ID = cust.Customer_ID
+group by 1,2,3
+order by 1,2
+
+#Laporan segmentasi produk dengan penjualan : 3nd Product < 5 , 5 < 2nd Product < 10 , 1st Product > 10 /bulan secara per toko dan per regional.
+select extract(year from o.Order_Date) as Tahun,
+      extract(month from o.Order_Date) as Bulan,
+      c.Product_Name as Nama_Produk,
+      sum(o.Quantity) as Total_Produk_Terjual,
+      case when sum(o.Quantity) >10 then '1st Produk'
+          when sum(o.Quantity) between 5 and 10 then '2nd Product'
+          else '3nd Product'
+      end as Kategori_Produk
+from `ChallengeBinar.orders` as o
+join `ChallengeBinar.categories`as c
+on o.Product_ID = c.Product_ID
+group by 1,2,3
+order by 1,2
+
+#Kemampuan segmentasi toko cabang dengan omzet : Kategori I  < USD 1000 , USD 1000 < Kategori II < USD 2000 , Kategori III   > USD 2000 /bulan
+select extract(year from Order_Date) as Tahun,
+      extract(month from Order_Date) as Bulan,
+      city as Kota,
+      round(sum(Sales),2) as Omset,
+      case when sum(Sales) >2000 then 'Kategori III'
+          when sum(Sales) between 1000 and 2000 then 'Kategori II'
+          else 'Kategori I'
+      end as Kategori
+from `ChallengeBinar.orders`
+group by 1,2,3
+order by 1,2
+
+
+
