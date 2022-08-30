@@ -1,0 +1,22 @@
+#memecah 1 kolom tabel menjadi 2
+select split(name,' ')[offset(0)] nama_awal,
+      split(name,' ')[offset(1)] nama_akhir
+from `Binar.distribution_centers`
+
+#menyatukan kolom yang telah dipisah tadi
+select concat(nama_awal,' ',nama_akhir) nama 
+from
+(
+  select split(name,' ')[offset(0)] nama_awal,
+      split(name,' ')[offset(1)] nama_akhir
+from `Binar.distribution_centers`
+)
+
+#menyimpan tabel ke dataset lain
+create view `macro-pulsar-354314.Binar.disttrsr as 
+(select id,
+      trim(split(name,' ')[offset(0)]) as state,
+      trim(split(name,' ')[offset(1)]) as region,
+      latitude,
+      longitude
+from `Binar.distribution_centers`)
